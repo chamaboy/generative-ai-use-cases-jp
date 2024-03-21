@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import ButtonSend from './ButtonSend';
 import Textarea from './Textarea';
 import ZoomUpImage from './ZoomUpImage';
 import useChat from '../hooks/useChat';
 import { useLocation } from 'react-router-dom';
 import Button from './Button';
-import { PiArrowsCounterClockwise, PiPaperclip } from 'react-icons/pi';
-import { ExtraData } from 'generative-ai-use-cases-jp';
-import useFileApi from '../hooks/useFileApi';
+import {
+  PiArrowsCounterClockwise,
+  PiPaperclip,
+  PiSpinnerGap,
+} from 'react-icons/pi';
+
+import useFiles from '../hooks/useFiles';
 
 type Props = {
   content: string;
@@ -22,9 +26,6 @@ type Props = {
   // ページ下部以外で使う時に margin bottom を無効化するためのオプション
   disableMarginBottom?: boolean;
   fileUpload?: boolean;
-  uploadedFiles?: ExtraData[];
-  onChangeFiles?: (files: File[]) => void;
-  uploadFiles?: () => void;
 } & (
   | {
       hideReset?: false;
@@ -38,48 +39,44 @@ type Props = {
 const InputChatContent: React.FC<Props> = (props) => {
   const { pathname } = useLocation();
   const { loading: chatLoading, isEmpty } = useChat(pathname);
-  const ref = useRef<HTMLInputElement>(null);
-  const [signedUrls, setSignedUrls] = useState<string[]>([]);
-  const { getDocDownloadSignedUrl } = useFileApi();
+  const { uploadedFiles, uploadFiles, deleteUploadedFile, uploading } =
+    useFiles();
 
   const onChangeFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
       // ファイルを反映しアップロード
-      if (props.onChangeFiles) {
-        props.onChangeFiles(Array.from(files));
-      }
-      if (props.uploadFiles) {
-        props.uploadFiles();
-      }
-    } else {
-      if (props.onChangeFiles) {
-        props.onChangeFiles([]);
-      }
+      uploadFiles(Array.from(files));
     }
   };
 
-  useEffect(() => {
-    // アップロードされたファイルの URL が更新されたら Signed URL を更新
-    if (props.uploadedFiles) {
-      Promise.all(
-        props.uploadedFiles.map(async (file) => {
-          return await getDocDownloadSignedUrl(file.source.data);
-        })
-      ).then((results) => setSignedUrls(results));
-    } else {
-      setSignedUrls([]);
+  const deleteFile = useCallback(
+    (fileUrl: string) => {
+      deleteUploadedFile(fileUrl);
+    },
+    [deleteUploadedFile]
+  );
+  const handlePaste = async (pasteEvent: React.ClipboardEvent) => {
+    const fileList = pasteEvent.clipboardData.items || [];
+    const files = Array.from(fileList)
+      .filter((file) => file.kind === 'file')
+      .map((file) => file.getAsFile() as File);
+    if (files.length > 0) {
+      // ファイルをアップロード
+      uploadFiles(Array.from(files));
+      // ファイルの場合ファイル名もペーストされるためデフォルトの挙動を止める
+      pasteEvent.preventDefault();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.uploadedFiles]);
+    // ファイルがない場合はデフォルトの挙動（テキストのペースト）
+  };
 
   const loading = useMemo(() => {
     return props.loading === undefined ? chatLoading : props.loading;
   }, [chatLoading, props.loading]);
 
   const disabledSend = useMemo(() => {
-    return props.content === '' || props.disabled;
-  }, [props.content, props.disabled]);
+    return props.content === '' || props.disabled || uploading;
+  }, [props.content, props.disabled, uploading]);
 
   return (
     <div
@@ -91,10 +88,18 @@ const InputChatContent: React.FC<Props> = (props) => {
           props.disableMarginBottom ? '' : 'mb-7'
         }`}>
         <div className="flex w-full flex-col">
-          {signedUrls.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2">
-              {signedUrls.map((url: string) => (
-                <ZoomUpImage key={url} src={url} size={24} />
+          {props.fileUpload && uploadedFiles.length > 0 && (
+            <div className="m-2 flex flex-wrap gap-2">
+              {uploadedFiles.map((uploadedFile, idx) => (
+                <ZoomUpImage
+                  key={idx}
+                  src={uploadedFile.base64EncodedImage}
+                  loading={uploadedFile.uploading}
+                  size="s"
+                  onDelete={() => {
+                    deleteFile(uploadedFile.s3Url ?? '');
+                  }}
+                />
               ))}
             </div>
           )}
@@ -105,28 +110,34 @@ const InputChatContent: React.FC<Props> = (props) => {
             notItem
             value={props.content}
             onChange={props.onChangeContent}
+            onPaste={props.fileUpload ? handlePaste : undefined}
             onEnter={disabledSend ? undefined : props.onSend}
           />
         </div>
         {props.fileUpload && (
           <label>
             <input
-              className="hidden"
+              hidden
               onChange={onChangeFiles}
-              id="file_input"
               type="file"
               accept=".jpg, .png, .gif, .webp"
-              multiple={true}
-              ref={ref}></input>
-            <div className="bg-aws-smile my-2 flex cursor-pointer items-center justify-center rounded-xl p-2 align-bottom text-xl text-white">
-              <PiPaperclip />
+              multiple
+              value={[]}
+            />
+            <div
+              className={`${uploading ? 'bg-gray-300' : 'bg-aws-smile cursor-pointer '} my-2 flex items-center justify-center rounded-xl p-2 align-bottom text-xl text-white`}>
+              {uploading ? (
+                <PiSpinnerGap className="animate-spin" />
+              ) : (
+                <PiPaperclip />
+              )}
             </div>
           </label>
         )}
         <ButtonSend
           className="m-2 align-bottom"
           disabled={disabledSend}
-          loading={loading}
+          loading={loading || uploading}
           onClick={props.onSend}
           icon={props.sendIcon}
         />

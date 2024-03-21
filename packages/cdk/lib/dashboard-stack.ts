@@ -19,7 +19,7 @@ export class DashboardStack extends Stack {
 
     // packages/cdk/lib/construct/api.ts に合わせてデフォルト値を設定
     const modelIds: string[] = this.node.tryGetContext('modelIds') || [
-      'anthropic.claude-v2',
+      'anthropic.claude-3-sonnet-20240229-v1:0',
     ];
     const imageGenerationModelIds: string[] = this.node.tryGetContext(
       'imageGenerationModelIds'
@@ -149,9 +149,10 @@ export class DashboardStack extends Stack {
         view: cw.LogQueryVisualizationType.TABLE,
         queryLines: [
           "filter @logStream = 'aws/bedrock/modelinvocations'",
-          'filter input.inputBodyJson.prompt like /Human: .*/',
-          'filter input.inputBodyJson.prompt not like /Human: <conversation>.*/',
-          'fields @timestamp, input.inputBodyJson.prompt',
+          "filter schemaType like 'ModelInvocationLog'",
+          'filter concat(input.inputBodyJson.prompt, input.inputBodyJson.messages.0.content.0.text) not like /.*<conversation>.*/',
+          'sort @timestamp desc',
+          'fields @timestamp, concat(input.inputBodyJson.prompt, input.inputBodyJson.messages.0.content.0.text) as input, modelId',
         ],
       })
     );
