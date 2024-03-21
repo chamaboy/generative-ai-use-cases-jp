@@ -24,6 +24,7 @@ import GenerateImagePage from './pages/GenerateImagePage';
 import TranscribePage from './pages/TranscribePage';
 import AgentChatPage from './pages/AgentChatPage.tsx';
 import FileUploadPage from './pages/FileUploadPage.tsx';
+import FaqPage from './pages/FaqPage.tsx';
 
 const ragEnabled: boolean = import.meta.env.VITE_APP_RAG_ENABLED === 'true';
 const samlAuthEnabled: boolean =
@@ -91,6 +92,12 @@ const routes: RouteObject[] = [
     ? {
         path: '/rag',
         element: <RagPage />,
+      }
+    : null,
+  ragEnabled
+    ? {
+        path: '/faq',
+        element: <FaqPage />,
       }
     : null,
   ragEnabled

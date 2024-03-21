@@ -67,6 +67,14 @@ const items: ItemProps[] = [
         display: 'usecase' as const,
       }
     : null,
+  ragEnabled
+    ? {
+        label: 'FAQ チャット',
+        to: '/faq',
+        icon: <PiChatCircleText />,
+        display: 'usecase' as const,
+      }
+    : null,
   {
     label: '文章生成',
     to: '/generate',

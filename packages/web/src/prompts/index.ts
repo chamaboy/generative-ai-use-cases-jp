@@ -1,6 +1,6 @@
 import { UnrecordedMessage } from 'generative-ai-use-cases-jp';
-import { RetrieveResultItem } from '@aws-sdk/client-kendra';
 import { claudePrompter } from './claude';
+import { QueryResultItem, RetrieveResultItem } from '@aws-sdk/client-kendra';
 
 export const getPrompter = (modelId: string) => {
   if (modelId.startsWith('anthropic.claude-')) {
@@ -47,7 +47,7 @@ export type WebContentParams = {
 export type RagParams = {
   promptType: 'RETRIEVE' | 'SYSTEM_CONTEXT';
   retrieveQueries?: string[];
-  referenceItems?: RetrieveResultItem[];
+  referenceItems?: (RetrieveResultItem | QueryResultItem)[];
 };
 
 export type SetTitleParams = {

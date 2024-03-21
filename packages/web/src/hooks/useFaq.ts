@@ -5,9 +5,8 @@ import useRagApi from './useRagApi';
 import { ShownMessage } from 'generative-ai-use-cases-jp';
 import { findModelByModelId } from './useModel';
 import { getPrompter } from '../prompts';
-import { QueryResultItem, RetrieveResultItem } from '@aws-sdk/client-kendra';
 
-const useRag = (id: string) => {
+const useFaq = (id: string) => {
   const {
     getModelId,
     messages,
@@ -61,36 +60,48 @@ const useRag = (id: string) => {
 
       // Kendra から 参考ドキュメントを Retrieve してシステムコンテキストとして設定する
       const items = await retrieve(searchQuery);
-      const faqs = await (
-        await query(searchQuery)
-      ).data.ResultItems?.filter((item) => item.Type === 'QUESTION_ANSWER');
+      const faqs =
+        (await (
+          await query(searchQuery)
+        ).data.ResultItems?.filter(
+          (item) => item.Type === 'QUESTION_ANSWER'
+        ).map((item) => {
+          const res = {
+            Content: item.DocumentExcerpt?.Text || '',
+            Id: item.Id,
+            DocumentId: item.DocumentId,
+            DocumentTitle: item.DocumentTitle?.Text || '',
+            DocumentURI: item.DocumentURI,
+            DocumentAttributes: item.DocumentAttributes,
+            ScoreAttributes: item.ScoreAttributes,
+          };
+          console.log({
+            faq: res,
+          });
+          return res;
+        })) || [];
       console.log(faqs); //適宜消してください
-      const docItems = [...(items.data.ResultItems ?? [])].slice(0, 3);
-      const faqItems = [...(faqs ?? [])].slice(0, 3);
-      if ((items.data.ResultItems ?? []).length === 0) {
+      console.log(items.data.ResultItems);
+      console.log(searchQuery);
+      console.log(items.data);
+
+      if ((faqs ?? []).length === 0) {
         popMessage();
         pushMessage(
           'assistant',
           `参考ドキュメントが見つかりませんでした。次の対応を検討してください。
-- Amazon Kendra の data source に対象のドキュメントが追加されているか確認する
-- Amazon Kendra の data source が sync されているか確認する
-- 入力の表現を変更する`
+      - Amazon Kendra の data source に対象のドキュメントが追加されているか確認する
+      - Amazon Kendra の data source が sync されているか確認する
+      - 入力の表現を変更する`
         );
         setLoading(false);
         return;
       }
 
-      const combinedContextItems = [...docItems, ...faqItems] as (
-        | RetrieveResultItem
-        | QueryResultItem
-      )[];
-
-      console.log(combinedContextItems);
-
       updateSystemContext(
         prompter.ragPrompt({
           promptType: 'SYSTEM_CONTEXT',
-          referenceItems: combinedContextItems,
+          referenceItems: [...faqs!] ?? [],
         })
       );
 
@@ -131,4 +142,4 @@ const useRag = (id: string) => {
   };
 };
 
-export default useRag;
+export default useFaq;

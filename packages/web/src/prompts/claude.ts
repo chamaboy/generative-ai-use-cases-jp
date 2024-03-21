@@ -10,6 +10,7 @@ import {
   TranslateParams,
   WebContentParams,
 } from './index';
+import { RetrieveResultItem, QueryResultItem } from '@aws-sdk/client-kendra';
 
 const systemContexts: { [key: string]: string } = {
   '/chat': 'あなたはチャットでユーザを支援するAIアシスタントです。',
@@ -209,29 +210,57 @@ ${params.retrieveQueries!.map((q) => `* ${q}`).join('\n')}
 "SourceId": データソースのID,
 "DocumentId": "ドキュメントを一意に特定するIDです。",
 "DocumentTitle": "ドキュメントのタイトルです。",
-"Content": "ドキュメントの内容です。こちらをもとに回答してください。",
+"Content": "ドキュメントの内容です。こちらをもとに回答してください。ドキュメントの中にURLが含まれています”,
 }[]
 </参考ドキュメントのJSON形式>
 
 <参考ドキュメント>
 [
 ${params
-  .referenceItems!.map((item, idx) => {
+  .referenceItems!.map((item) => {
     return `${JSON.stringify({
-      SourceId: idx,
       DocumentId: item.DocumentId,
       DocumentTitle: item.DocumentTitle,
-      Content: item.Content,
+      Content: (item as RetrieveResultItem).Content
+        ? (item as RetrieveResultItem).Content
+        : (item as QueryResultItem).AdditionalAttributes?.find(
+            (a) => a.Key === 'AnswerText'
+          ),
     })}`;
   })
   .join(',\n')}
 ]
 </参考ドキュメント>
 
+<対応が出来ない内容>
+「不可」、「対応できません」等と同等の否定の文言が含まれている場合
+</対応出来ない内容>
+
 <回答のルール>
 * 雑談や挨拶には応じないでください。「私は雑談はできません。通常のチャット機能をご利用ください。」とだけ出力してください。他の文言は一切出力しないでください。例外はありません。
 * 必ず<参考ドキュメント></参考ドキュメント>をもとに回答してください。<参考ドキュメント></参考ドキュメント>から読み取れないことは、絶対に回答しないでください。
-* 回答の文末ごとに、参照したドキュメントの SourceId を [^<SourceId>] 形式で文末に追加してください。
+* Contentの内容が質問に対して<対応が出来ない内容></対応出来ない内容>の場合は、「対応できる銀行はありません。」とだけ出力してください。例外はありません。
+* <参考ドキュメント>
+*   <qa_pairs.csv>
+*     文頭に金融機関名、金融機関支店名を表示してそれぞれで改行をしてください
+*     回答事にURLを追記してください
+*     URLはhttps://iyell.cybozu.com/から始まります。
+*   </qa_pairs.csv>
+*   <qa.pdf>
+*     文頭に"全国保証のデータ"と表示してください。例外はありません。
+*     回答文だけを表示してください。
+*     文末に参照したページ数を表示してください。例外はありません。
+*     表示するページ数の表示はPの後にページ数を表示してください。例外はありません。
+*     文末に"https://zenkoku-hosyou.s3.amazonaws.com/qa.pdf"を表示してください。例外はありません。
+*     Asisstant:の回答に段落ごとに改行を入れてください。
+*   </qa.pdf>
+*   <その他>
+*     回答文のみを表示してください。
+*     https://iyell.cybozu.com/から始まるURLは表示しないでください。
+*   </その他>
+* </参考ドキュメント>
+* <参考ドキュメント></参考ドキュメント>のすべて回答文を表示してください。
+* <参考ドキュメント></参考ドキュメント>でAsisstant:が回答をしている内容の場合は同じ回答
 * <参考ドキュメント></参考ドキュメント>をもとに回答できない場合は、「回答に必要な情報が見つかりませんでした。」とだけ出力してください。例外はありません。
 * 質問に具体性がなく回答できない場合は、質問の仕方をアドバイスしてください。
 * 回答文以外の文字列は一切出力しないでください。回答はJSON形式ではなく、テキストで出力してください。見出しやタイトル等も必要ありません。
