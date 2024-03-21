@@ -91,10 +91,12 @@ const useRag = (id: string) => {
       });
 
       // Kendra から 参考ドキュメントを Retrieve してシステムコンテキストとして設定する
-      const items = await retrieve(searchQuery);
+      const retrievedItems = await retrieve(searchQuery);
+      const items = arrangeItems(retrievedItems.data.ResultItems ?? []);
       const faqs = await (
         await query(searchQuery)
       ).data.ResultItems?.filter((item) => item.Type === 'QUESTION_ANSWER');
+      console.log(items, 'items');
       console.log(faqs); //適宜消してください
       const docItems = [...(items.data.ResultItems ?? [])].slice(0, 3);
       const faqItems = [...(faqs ?? [])].slice(0, 3);
